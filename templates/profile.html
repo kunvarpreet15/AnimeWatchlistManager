@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}{{ user.username }} · Profile{% endblock %}
+{% block content %}
+	<h1 class="text-2xl font-bold mb-2">{{ user.username }}</h1>
+	<div class="text-sm text-slate-400 mb-6">Joined {{ user.created_at }}</div>
+
+	<h2 class="text-xl font-semibold mb-3">Watchlist</h2>
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+		{% for w in watchlist_items %}
+			<a href="{{ url_for('anime_detail', anime_id=w.anime_id) }}" class="p-3 bg-slate-800/60 rounded flex gap-3">
+				<img src="{{ w.poster_url or 'https://placehold.co/200x300?text=Anime' }}" class="w-20 h-28 object-cover rounded" alt="{{ w.title }}" />
+				<div>
+					<div class="font-semibold">{{ w.title }}</div>
+					<div class="text-xs text-slate-400">{{ w.status|capitalize }} · {{ w.episodes_watched or 0 }} eps</div>
+				</div>
+			</a>
+		{% else %}
+			<div class="col-span-full text-slate-400">No items.</div>
+		{% endfor %}
+	</div>
+
+	<h2 class="text-xl font-semibold mb-3">Reviews</h2>
+	<div class="space-y-3">
+		{% for r in reviews %}
+			<div class="p-4 bg-slate-800/60 rounded">
+				<div class="flex items-center justify-between mb-1">
+					<a class="font-semibold hover:text-cyan-300" href="{{ url_for('anime_detail', anime_id=r.anime_id) }}">{{ r.title }}</a>
+					<div class="text-sm text-yellow-300">★ {{ r.rating }}</div>
+				</div>
+				<div class="text-slate-200 whitespace-pre-wrap">{{ r.review_text or '' }}</div>
+				<div class="text-xs text-slate-400 mt-2">{{ r.review_date }}</div>
+			</div>
+		{% else %}
+			<div class="text-slate-400">No reviews.</div>
+		{% endfor %}
+	</div>
+{% endblock %}
+
+
+

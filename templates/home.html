@@ -1,0 +1,128 @@
+{% extends 'base.html' %} {% block title %}Home · Anime Watchlist{% endblock %}
+{% block content %} {# Spotlight Section #} {% if spotlight %}
+<section
+  class="relative rounded-2xl overflow-hidden mb-10 shadow-lg shadow-slate-800/50 bg-gradient-to-r from-cyan-500/10 to-pink-500/10"
+>
+  <img
+    src="{{ spotlight.poster_url or 'https://placehold.co/1200x600?text=Anime' }}"
+    class="absolute inset-0 w-full h-full object-cover opacity-30"
+    alt="{{ spotlight.title }}"
+  />
+  <div
+    class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"
+  ></div>
+  <div class="relative z-10 p-24 md:p-50 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="md:col-span-2 max-w-2xl">
+      <h2 class="text-3xl md:text-5xl font-extrabold drop-shadow mb-3">
+        {{ spotlight.title }}
+      </h2>
+      <div class="text-slate-300 mb-3">
+        {{ spotlight.type }} · {{ spotlight.release_year or '—' }}
+      </div>
+      <p class="text-slate-200/90 line-clamp-3 mb-5">
+        {{ spotlight.description or '' }}
+      </p>
+      <div class="flex gap-3">
+        <a
+          href="{{ url_for('anime_detail', anime_id=spotlight.anime_id) }}"
+          class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-4 py-2 rounded"
+          >Details</a
+        >
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %} {# Trending Section #}
+<section class="mb-10">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-2xl font-semibold">Trending</h3>
+    <div class="flex gap-2">
+      <button
+        type="button"
+        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+        onclick="document.getElementById('trendRow').scrollBy({left:-400,behavior:'smooth'})"
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+        onclick="document.getElementById('trendRow').scrollBy({left:400,behavior:'smooth'})"
+      >
+        ›
+      </button>
+    </div>
+  </div>
+  <div id="trendRow" class="flex overflow-x-auto gap-4 snap-x snap-mandatory">
+    {% for anime in trending %}
+    <a
+      href="{{ url_for('anime_detail', anime_id=anime.anime_id) }}"
+      class="relative snap-start shrink-0 w-36 sm:w-40 group"
+    >
+      <span
+        class="absolute top-2 left-2 text-xs font-bold bg-slate-900/80 px-2 py-1 rounded"
+        >{{ '%02d' % loop.index }}</span
+      >
+      <img
+        src="{{ anime.poster_url or 'https://placehold.co/300x450?text=Anime' }}"
+        class="w-full rounded-xl shadow-lg shadow-slate-900/50 transition-transform duration-200 group-hover:scale-[1.03]"
+        alt="{{ anime.title }}"
+      />
+      <p class="mt-2 text-sm font-semibold line-clamp-2">{{ anime.title }}</p>
+      <p class="text-xs text-slate-400">
+        {{ anime.type }} · {{ anime.release_year or '—' }}
+      </p>
+    </a>
+    {% else %}
+    <div class="text-slate-400">No trending anime.</div>
+    {% endfor %}
+  </div>
+</section>
+
+{# Genre Sections #} {% for genre, animes in genre_sections.items() %}
+<section
+  class="mb-10 p-1 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-pink-500/20"
+>
+  <div class="px-3 pt-3">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-2xl font-semibold">{{ genre }} Anime</h3>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+          onclick="document.getElementById('genre-{{ loop.index }}').scrollBy({left:-400,behavior:'smooth'})"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+          onclick="document.getElementById('genre-{{ loop.index }}').scrollBy({left:400,behavior:'smooth'})"
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    id="genre-{{ loop.index }}"
+    class="flex overflow-x-auto gap-4 snap-x snap-mandatory px-3 pb-4"
+  >
+    {% for anime in animes %}
+    <a
+      href="{{ url_for('anime_detail', anime_id=anime.anime_id) }}"
+      class="snap-start shrink-0 w-36 sm:w-40"
+    >
+      <img
+        src="{{ anime.poster_url or 'https://placehold.co/300x450?text=Anime' }}"
+        class="w-full rounded-xl shadow-lg shadow-slate-900/50"
+        alt="{{ anime.title }}"
+      />
+      <p class="mt-2 text-sm font-semibold line-clamp-2">{{ anime.title }}</p>
+    </a>
+    {% else %}
+    <div class="text-slate-400">No anime for this genre.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %} {% endblock %}
