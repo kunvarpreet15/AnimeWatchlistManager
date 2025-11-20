@@ -7,6 +7,7 @@ import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
 import bcrypt
+import mal_api
 
 load_dotenv()
 
@@ -46,67 +47,53 @@ def inject_user():
 
 @app.route("/")
 def home():
+    """Home page with hero section, trending anime, and genre sections from MAL API."""
+    # Hero section: Top-ranked anime
+    hero_data = None
     try:
-        with get_db() as conn:
-            with conn.cursor(dictionary=True) as cur:
-                # Spotlight: latest by release_year
-                cur.execute(
-                    """
-                    SELECT * FROM ANIME
-                    ORDER BY release_year DESC, anime_id DESC
-                    LIMIT 1
-                    """
-                )
-                spotlight = cur.fetchone()
-
-                # Trending: top 10 by recent release year
-                cur.execute(
-                    """
-                    SELECT a.anime_id, a.title, a.poster_url, a.type, a.release_year
-                    FROM ANIME a
-                    ORDER BY a.release_year DESC, a.anime_id DESC
-                    LIMIT 10
-                    """
-                )
-                trending = cur.fetchall()
-
-                # Top 4 genres by count
-                cur.execute(
-                    """
-                    SELECT g.genre_name, COUNT(*) AS cnt
-                    FROM ANIME_GENRE ag
-                    JOIN GENRE g ON g.genre_id = ag.genre_id
-                    GROUP BY g.genre_id, g.genre_name
-                    ORDER BY cnt DESC, g.genre_name ASC
-                    LIMIT 4
-                    """
-                )
-                top_genres = [row["genre_name"] for row in cur.fetchall()]
-
-                genre_sections = {}
-                for gname in top_genres:
-                    cur.execute(
-                        """
-                        SELECT a.anime_id, a.title, a.poster_url
-                        FROM ANIME a
-                        JOIN ANIME_GENRE ag ON a.anime_id = ag.anime_id
-                        JOIN GENRE g ON g.genre_id = ag.genre_id
-                        WHERE g.genre_name = %s
-                        ORDER BY a.release_year DESC, a.anime_id DESC
-                        LIMIT 10
-                        """,
-                        (gname,),
-                    )
-                    genre_sections[gname] = cur.fetchall()
-
-        return render_template(
-            "home.html",
-            spotlight=spotlight,
-            trending=trending,
-            genre_sections=genre_sections,
-        )
-    except Error:
-        return render_template("home.html", spotlight=None, trending=[], genre_sections={})
+        top_ranked = mal_api.get_ranking(ranking_type="all", limit=1)
+        if top_ranked:
+            hero_data = mal_api.format_anime_for_display(top_ranked[0])
+    except Exception as e:
+        print(f"Error fetching hero section: {e}")
+    
+    # Trending section: Currently airing anime
+    trending_items = []
+    try:
+        trending_raw = mal_api.get_trending(limit=10)
+        for anime_data in trending_raw:
+            formatted = mal_api.format_anime_for_display(anime_data)
+            if formatted:
+                trending_items.append(formatted)
+    except Exception as e:
+        print(f"Error fetching trending anime: {e}")
+    
+    # Genre sections: Popular genres
+    genre_sections = {}
+    popular_genres = ["action", "comedy", "drama", "fantasy"]  # Top 4 popular genres
+    
+    for genre_name in popular_genres:
+        genre_id = mal_api.get_genre_id(genre_name)
+        if genre_id:
+            try:
+                genre_anime_raw = mal_api.get_anime_by_genre(genre_id, limit=10)
+                genre_items = []
+                for anime_data in genre_anime_raw:
+                    formatted = mal_api.format_anime_for_display(anime_data)
+                    if formatted:
+                        genre_items.append(formatted)
+                if genre_items:
+                    genre_sections[genre_name.capitalize()] = genre_items
+            except Exception as e:
+                print(f"Error fetching genre {genre_name}: {e}")
+                genre_sections[genre_name.capitalize()] = []
+    
+    return render_template(
+        "home.html",
+        spotlight=hero_data,
+        trending=trending_items,
+        genre_sections=genre_sections,
+    )
 
 
 @app.route("/register", methods=["GET", "POST"]) 
@@ -189,131 +176,185 @@ def logout():
 
 @app.route("/browse")
 def browse():
+    """Redirect to search page - all anime content is now from MAL API."""
+    # Redirect to search page with query if provided, otherwise just search page
     q = request.args.get("q", "").strip()
-    try:
-        with get_db() as conn:
-            with conn.cursor(dictionary=True) as cur:
-                if q:
-                    query = (
-                        """
-                        SELECT DISTINCT a.anime_id, a.title, a.poster_url, a.type, a.release_year
-                        FROM ANIME a
-                        LEFT JOIN ANIME_GENRE ag ON ag.anime_id = a.anime_id
-                        LEFT JOIN GENRE g ON g.genre_id = ag.genre_id
-                        LEFT JOIN ANIME_STUDIO ast ON ast.anime_id = a.anime_id
-                        LEFT JOIN STUDIO s ON s.studio_id = ast.studio_id
-                        WHERE a.title LIKE %s OR g.genre_name LIKE %s OR s.studio_name LIKE %s
-                        ORDER BY a.title ASC
-                        """
-                    )
-                    like = f"%{q}%"
-                    cur.execute(query, (like, like, like))
-                else:
-                    cur.execute(
-                        "SELECT a.anime_id, a.title, a.poster_url, a.type, a.release_year FROM ANIME a ORDER BY a.title ASC"
-                    )
-                items = cur.fetchall()
-        return render_template("browse.html", items=items, q=q)
-    except Error as e:
-        print("DB ERROR:", e)
-        return render_template("browse.html", items=[], q=q)
+    if q:
+        return redirect(url_for("search", q=q))
+    return redirect(url_for("search"))
+
+
+@app.route("/search")
+def search():
+    """Search anime using MAL API."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return render_template("search.html", results=[], query="")
+    
+    # Search MAL API (limit=12 as specified)
+    mal_results = mal_api.search_anime(query, limit=12)
+    
+    # Format results for display
+    results = []
+    for anime_data in mal_results:
+        formatted = mal_api.format_anime_for_display(anime_data)
+        if formatted:
+            results.append(formatted)
+    
+    return render_template("search.html", results=results, query=query)
 
 
 @app.route("/anime/<int:anime_id>")
 def anime_detail(anime_id: int):
-    try:
-        with get_db() as conn:
-            with conn.cursor(dictionary=True) as cur:
-                cur.execute("SELECT * FROM ANIME WHERE anime_id=%s", (anime_id,))
-                anime = cur.fetchone()
-                if not anime:
-                    abort(404)
-                cur.execute(
-                    """
-                    SELECT g.genre_name FROM ANIME_GENRE ag
-                    JOIN GENRE g ON g.genre_id = ag.genre_id
-                    WHERE ag.anime_id=%s
-                    ORDER BY g.genre_name
-                    """,
-                    (anime_id,),
-                )
-                genres = [row["genre_name"] for row in cur.fetchall()]
-                cur.execute(
-                    """
-                    SELECT s.studio_name FROM ANIME_STUDIO ast
-                    JOIN STUDIO s ON s.studio_id = ast.studio_id
-                    WHERE ast.anime_id=%s
-                    ORDER BY s.studio_name
-                    """,
-                    (anime_id,),
-                )
-                studios = [row["studio_name"] for row in cur.fetchall()]
-                cur.execute(
-                    """
-                    SELECT r.review_id, r.rating, r.review_text, r.review_date, u.username
-                    FROM REVIEW r
-                    JOIN USERS u ON u.user_id = r.user_id
-                    WHERE r.anime_id=%s
-                    ORDER BY r.review_date DESC
-                    """,
-                    (anime_id,),
-                )
-                reviews = cur.fetchall()
-
-                user_watch = None
-                if "user_id" in session:
+    """Display anime details from MAL API."""
+    # Fetch anime details from MAL API
+    anime_data = mal_api.get_anime_details(anime_id)
+    if not anime_data:
+        flash("Anime not found or error fetching data from MAL.", "danger")
+        return redirect(url_for("search"))
+    
+    # Format anime data for display
+    anime = mal_api.format_anime_for_display(anime_data)
+    if not anime:
+        flash("Error formatting anime data.", "danger")
+        return redirect(url_for("search"))
+    
+    # Fetch MAL reviews
+    mal_reviews = mal_api.get_top_reviews(anime_id, limit=3)
+    
+    # Get user's watchlist entry if logged in
+    user_watch = None
+    local_reviews = []
+    if "user_id" in session:
+        try:
+            with get_db() as conn:
+                with conn.cursor(dictionary=True) as cur:
                     cur.execute(
                         "SELECT * FROM WATCHLIST WHERE user_id=%s AND anime_id=%s",
                         (session["user_id"], anime_id),
                     )
                     user_watch = cur.fetchone()
-
-        return render_template(
-            "anime_detail.html",
-            anime=anime,
-            genres=genres,
-            studios=studios,
-            reviews=reviews,
-            user_watch=user_watch,
-            statuses=sorted(ALLOWED_STATUSES),
-        )
-    except Error:
-        abort(500)
+                    # Try to fetch local reviews (if REVIEW table uses MAL anime_id)
+                    try:
+                        cur.execute(
+                            """
+                            SELECT r.review_id, r.rating, r.review_text, r.review_date, u.username
+                            FROM REVIEW r
+                            JOIN USERS u ON u.user_id = r.user_id
+                            WHERE r.anime_id=%s
+                            ORDER BY r.review_date DESC
+                            """,
+                            (anime_id,),
+                        )
+                        local_reviews = cur.fetchall()
+                    except Error:
+                        # REVIEW table might not support MAL anime_id, ignore
+                        pass
+        except Error:
+            pass  # Ignore DB errors
+    
+    return render_template(
+        "anime_detail.html",
+        anime=anime,
+        genres=anime.get("genres", []),
+        studios=anime.get("studios", []),
+        mal_reviews=mal_reviews,
+        reviews=local_reviews,
+        user_watch=user_watch,
+        statuses=sorted(ALLOWED_STATUSES),
+    )
 
 
 @app.route("/watchlist", methods=["GET"]) 
 @login_required
 def watchlist():
+    """Display user's watchlist with anime details fetched from MAL API."""
     try:
         with get_db() as conn:
             with conn.cursor(dictionary=True) as cur:
+                # Get watchlist entries (only anime_id and user data)
                 cur.execute(
                     """
-                    SELECT w.watchlist_id, w.status, w.episodes_watched, w.last_updated,
-                           a.anime_id, a.title, a.total_episodes, a.poster_url, a.type, a.release_year
+                    SELECT w.watchlist_id, w.anime_id, w.status, w.episodes_watched, w.last_updated
                     FROM WATCHLIST w
-                    JOIN ANIME a ON a.anime_id = w.anime_id
                     WHERE w.user_id=%s
                     ORDER BY w.last_updated DESC
                     """,
                     (session["user_id"],),
                 )
-                items = cur.fetchall()
+                watchlist_entries = cur.fetchall()
+        
+        # Fetch anime details from MAL API for each entry
+        items = []
+        for entry in watchlist_entries:
+            anime_id = entry["anime_id"]
+            anime_data = mal_api.get_anime_details(anime_id)
+            
+            if anime_data:
+                formatted = mal_api.format_anime_for_display(anime_data)
+                if formatted:
+                    # Merge watchlist entry data with anime data
+                    item = {
+                        "watchlist_id": entry["watchlist_id"],
+                        "anime_id": anime_id,
+                        "status": entry["status"],
+                        "episodes_watched": entry["episodes_watched"],
+                        "last_updated": entry["last_updated"],
+                        "title": formatted.get("title", "Unknown"),
+                        "poster_url": formatted.get("poster_url", ""),
+                        "num_episodes": formatted.get("num_episodes"),
+                        "year": formatted.get("year"),
+                        "mean": formatted.get("mean"),
+                        "rank": formatted.get("rank"),
+                    }
+                    items.append(item)
+            else:
+                # If MAL API fails, still show the entry with minimal info
+                item = {
+                    "watchlist_id": entry["watchlist_id"],
+                    "anime_id": anime_id,
+                    "status": entry["status"],
+                    "episodes_watched": entry["episodes_watched"],
+                    "last_updated": entry["last_updated"],
+                    "title": f"Anime ID: {anime_id}",
+                    "poster_url": "",
+                    "num_episodes": None,
+                    "year": None,
+                    "mean": None,
+                    "rank": None,
+                }
+                items.append(item)
+        
         return render_template("watchlist.html", items=items, statuses=sorted(ALLOWED_STATUSES))
-    except Error:
+    except Error as e:
+        print(f"Watchlist DB error: {e}")
         return render_template("watchlist.html", items=[], statuses=sorted(ALLOWED_STATUSES))
 
 
 @app.route("/watchlist/add", methods=["POST"]) 
 @login_required
 def watchlist_add():
+    """Add anime to watchlist using MAL anime_id."""
     anime_id = request.form.get("anime_id")
     status = request.form.get("status", "").strip().lower()
     episodes = request.form.get("episodes_watched", "0").strip()
 
     if not anime_id or status not in ALLOWED_STATUSES:
         flash("Invalid input.", "danger")
-        return redirect(request.referrer or url_for("browse"))
+        return redirect(request.referrer or url_for("search"))
+    
+    try:
+        anime_id_int = int(anime_id)
+    except ValueError:
+        flash("Invalid anime ID.", "danger")
+        return redirect(request.referrer or url_for("search"))
+    
+    # Verify anime exists in MAL API
+    anime_data = mal_api.get_anime_details(anime_id_int)
+    if not anime_data:
+        flash("Anime not found in MAL.", "danger")
+        return redirect(request.referrer or url_for("search"))
+    
     try:
         episodes_val = max(0, int(episodes or 0))
     except ValueError:
@@ -324,7 +365,7 @@ def watchlist_add():
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM WATCHLIST WHERE user_id=%s AND anime_id=%s",
-                    (session["user_id"], anime_id),
+                    (session["user_id"], anime_id_int),
                 )
                 exists = cur.fetchone()
                 if exists:
@@ -334,16 +375,17 @@ def watchlist_add():
                         SET status=%s, episodes_watched=%s
                         WHERE user_id=%s AND anime_id=%s
                         """,
-                        (status, episodes_val, session["user_id"], anime_id),
+                        (status, episodes_val, session["user_id"], anime_id_int),
                     )
                 else:
                     cur.execute(
                         "INSERT INTO WATCHLIST (user_id, anime_id, status, episodes_watched) VALUES (%s, %s, %s, %s)",
-                        (session["user_id"], anime_id, status, episodes_val),
+                        (session["user_id"], anime_id_int, status, episodes_val),
                     )
                 conn.commit()
         flash("Watchlist updated.", "success")
-    except Error:
+    except Error as e:
+        print(f"Watchlist add error: {e}")
         flash("Failed to update watchlist.", "danger")
     return redirect(request.referrer or url_for("watchlist"))
 
@@ -460,30 +502,68 @@ def profile(username: str):
                 user = cur.fetchone()
                 if not user:
                     abort(404)
+                # Get watchlist entries (using MAL anime_id)
                 cur.execute(
                     """
-                    SELECT w.status, w.episodes_watched, a.title, a.anime_id, a.total_episodes, a.poster_url
+                    SELECT w.status, w.episodes_watched, w.anime_id, w.last_updated
                     FROM WATCHLIST w
-                    JOIN ANIME a ON a.anime_id = w.anime_id
                     WHERE w.user_id=%s
                     ORDER BY w.last_updated DESC
                     """,
                     (user["user_id"],),
                 )
-                watchlist_items = cur.fetchall()
+                watchlist_entries = cur.fetchall()
+                
+                # Fetch anime details from MAL API for each watchlist entry
+                watchlist_items = []
+                for entry in watchlist_entries:
+                    anime_id = entry["anime_id"]
+                    anime_data = mal_api.get_anime_details(anime_id)
+                    if anime_data:
+                        formatted = mal_api.format_anime_for_display(anime_data)
+                        if formatted:
+                            item = {
+                                "status": entry["status"],
+                                "episodes_watched": entry["episodes_watched"],
+                                "anime_id": anime_id,
+                                "title": formatted.get("title", "Unknown"),
+                                "num_episodes": formatted.get("num_episodes"),
+                                "poster_url": formatted.get("poster_url", ""),
+                            }
+                            watchlist_items.append(item)
+                
+                # Get reviews (using MAL anime_id)
                 cur.execute(
                     """
-                    SELECT r.rating, r.review_text, r.review_date, a.title, a.anime_id
+                    SELECT r.rating, r.review_text, r.review_date, r.anime_id
                     FROM REVIEW r
-                    JOIN ANIME a ON a.anime_id = r.anime_id
                     WHERE r.user_id=%s
                     ORDER BY r.review_date DESC
                     """,
                     (user["user_id"],),
                 )
-                reviews = cur.fetchall()
+                review_entries = cur.fetchall()
+                
+                # Fetch anime details from MAL API for each review
+                reviews = []
+                for entry in review_entries:
+                    anime_id = entry["anime_id"]
+                    anime_data = mal_api.get_anime_details(anime_id)
+                    if anime_data:
+                        formatted = mal_api.format_anime_for_display(anime_data)
+                        if formatted:
+                            review = {
+                                "rating": entry["rating"],
+                                "review_text": entry["review_text"],
+                                "review_date": entry["review_date"],
+                                "anime_id": anime_id,
+                                "title": formatted.get("title", "Unknown"),
+                            }
+                            reviews.append(review)
+        
         return render_template("profile.html", user=user, watchlist_items=watchlist_items, reviews=reviews)
-    except Error:
+    except Error as e:
+        print(f"Profile error: {e}")
         abort(500)
 
 

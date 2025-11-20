@@ -1,5 +1,6 @@
 {% extends 'base.html' %} {% block title %}Home · Anime Watchlist{% endblock %}
-{% block content %} {# Spotlight Section #} {% if spotlight %}
+{% block content %} {# Spotlight/Hero Section #} 
+{% if spotlight %}
 <section
   class="relative rounded-2xl overflow-hidden mb-10 shadow-lg shadow-slate-800/50 bg-gradient-to-r from-cyan-500/10 to-pink-500/10"
 >
@@ -7,6 +8,7 @@
     src="{{ spotlight.poster_url or 'https://placehold.co/1200x600?text=Anime' }}"
     class="absolute inset-0 w-full h-full object-cover opacity-30"
     alt="{{ spotlight.title }}"
+    onerror="this.src='https://placehold.co/1200x600?text=No+Image'"
   />
   <div
     class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"
@@ -17,20 +19,26 @@
         {{ spotlight.title }}
       </h2>
       <div class="text-slate-300 mb-3">
-        {{ spotlight.type }} · {{ spotlight.release_year or '—' }}
+        {% if spotlight.year %} {{ spotlight.year }} · {% endif %}
+        {% if spotlight.num_episodes %} {{ spotlight.num_episodes }} eps · {% endif %}
+        {% if spotlight.mean %} ⭐ {{ "%.2f"|format(spotlight.mean) }}{% endif %}
       </div>
       <p class="text-slate-200/90 line-clamp-3 mb-5">
-        {{ spotlight.description or '' }}
+        {{ spotlight.synopsis or spotlight.full_synopsis or 'No description available.' }}
       </p>
       <div class="flex gap-3">
         <a
-          href="{{ url_for('anime_detail', anime_id=spotlight.anime_id) }}"
+          href="{{ url_for('anime_detail', anime_id=spotlight.id) }}"
           class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-4 py-2 rounded"
           >Details</a
         >
       </div>
     </div>
   </div>
+</section>
+{% else %}
+<section class="mb-10 p-8 bg-slate-800/60 rounded-lg text-center">
+  <p class="text-slate-400">Unable to load featured anime right now. Please try again later.</p>
 </section>
 {% endif %} {# Trending Section #}
 <section class="mb-10">
@@ -56,26 +64,31 @@
   <div id="trendRow" class="flex overflow-x-auto gap-4 snap-x snap-mandatory">
     {% for anime in trending %}
     <a
-      href="{{ url_for('anime_detail', anime_id=anime.anime_id) }}"
+      href="{{ url_for('anime_detail', anime_id=anime.id) }}"
       class="relative snap-start shrink-0 w-36 sm:w-40 group"
     >
       <span
-        class="absolute top-2 left-2 text-xs font-bold bg-slate-900/80 px-2 py-1 rounded"
+        class="absolute top-2 left-2 text-xs font-bold bg-slate-900/80 px-2 py-1 rounded z-10"
         >{{ '%02d' % loop.index }}</span
       >
       <img
         src="{{ anime.poster_url or 'https://placehold.co/300x450?text=Anime' }}"
         class="w-full rounded-xl shadow-lg shadow-slate-900/50 transition-transform duration-200 group-hover:scale-[1.03]"
         alt="{{ anime.title }}"
+        onerror="this.src='https://placehold.co/300x450?text=No+Image'"
       />
       <p class="mt-2 text-sm font-semibold line-clamp-2">{{ anime.title }}</p>
       <p class="text-xs text-slate-400">
-        {{ anime.type }} · {{ anime.release_year or '—' }}
+        {% if anime.year %} {{ anime.year }} · {% endif %}
+        {% if anime.mean %} ⭐ {{ "%.2f"|format(anime.mean) }}{% endif %}
       </p>
     </a>
-    {% else %}
-    <div class="text-slate-400">No trending anime.</div>
     {% endfor %}
+    {% if not trending %}
+    <div class="text-slate-400 col-span-full py-8 text-center w-full">
+      Unable to load trending anime right now. Please try again later.
+    </div>
+    {% endif %}
   </div>
 </section>
 
@@ -110,18 +123,24 @@
   >
     {% for anime in animes %}
     <a
-      href="{{ url_for('anime_detail', anime_id=anime.anime_id) }}"
-      class="snap-start shrink-0 w-36 sm:w-40"
+      href="{{ url_for('anime_detail', anime_id=anime.id) }}"
+      class="snap-start shrink-0 w-36 sm:w-40 group"
     >
       <img
         src="{{ anime.poster_url or 'https://placehold.co/300x450?text=Anime' }}"
-        class="w-full rounded-xl shadow-lg shadow-slate-900/50"
+        class="w-full rounded-xl shadow-lg shadow-slate-900/50 transition-transform duration-200 group-hover:scale-[1.03]"
         alt="{{ anime.title }}"
+        onerror="this.src='https://placehold.co/300x450?text=No+Image'"
       />
       <p class="mt-2 text-sm font-semibold line-clamp-2">{{ anime.title }}</p>
+      {% if anime.mean %}
+        <p class="text-xs text-yellow-300">⭐ {{ "%.2f"|format(anime.mean) }}</p>
+      {% endif %}
     </a>
     {% else %}
-    <div class="text-slate-400">No anime for this genre.</div>
+    <div class="text-slate-400 col-span-full py-4 text-center">
+      Unable to load {{ genre }} anime right now. Please try again later.
+    </div>
     {% endfor %}
   </div>
 </section>

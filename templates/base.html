@@ -28,10 +28,10 @@
           <a
             href="{{ url_for('home') }}"
             class="text-xl font-bold text-cyan-300"
-            >Zoro.to</a
+            >OtakuCloud</a
           >
-          <a class="hover:text-cyan-300" href="{{ url_for('browse') }}"
-            >Browse</a
+          <a class="hover:text-cyan-300" href="{{ url_for('search') }}"
+            >Search</a
           >
           {% if current_user %}
           <a class="hover:text-cyan-300" href="{{ url_for('watchlist') }}"
@@ -86,7 +86,7 @@
       {% endif %} {% endwith %} {% block content %}{% endblock %}
     </main>
     <footer class="text-center text-slate-400 py-8">
-      <div>© {{ 2025 }} Zoro.to</div>
+      <div>© {{ 2025 }} OtakuCloud</div>
     </footer>
   </body>
 </html>

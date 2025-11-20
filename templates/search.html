@@ -1,0 +1,137 @@
+{% extends 'base.html' %} {% block title %}Search Anime · Anime Watchlist{%
+endblock %} {% block content %}
+<div class="flex items-center justify-between gap-4 mb-6">
+  <h1 class="text-2xl font-bold">Search Anime</h1>
+</div>
+
+<form method="get" action="{{ url_for('search') }}" class="mb-6">
+  <div class="flex gap-2">
+    <input
+      name="q"
+      value="{{ query }}"
+      placeholder="Search anime by title..."
+      class="flex-1 bg-slate-800 border border-slate-700 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+      required
+    />
+    <button
+      type="submit"
+      class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-6 py-2 rounded"
+    >
+      Search
+    </button>
+  </div>
+</form>
+
+{% if query %} {% if results %}
+<div class="space-y-4">
+  <h2 class="text-xl font-semibold">Search Results for "{{ query }}"</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for anime in results %}
+    <div
+      class="bg-slate-800/60 rounded-lg p-4 hover:bg-slate-800/80 transition"
+    >
+      <div class="flex gap-4">
+        <a href="{{ url_for('anime_detail', anime_id=anime.id) }}">
+          <img
+            src="{{ anime.poster_url or 'https://placehold.co/150x200?text=No+Image' }}"
+            alt="{{ anime.title }}"
+            class="w-24 h-32 object-cover rounded"
+            onerror="this.src='https://placehold.co/150x200?text=No+Image'"
+          />
+        </a>
+        <div class="flex-1">
+          <a
+            href="{{ url_for('anime_detail', anime_id=anime.id) }}"
+            class="font-semibold text-cyan-300 hover:text-cyan-200 block mb-2"
+          >
+            {{ anime.title }}
+          </a>
+          {% if anime.english_title and anime.english_title != anime.title %}
+          <div class="text-sm text-slate-400 mb-2">
+            {{ anime.english_title }}
+          </div>
+          {% endif %}
+
+          <div class="text-xs text-slate-400 mb-2">
+            {% if anime.year %} {{ anime.year }} · {% endif %} {% if
+            anime.num_episodes %} {{ anime.num_episodes }} eps · {% endif %} {%
+            if anime.status %} {{ anime.status|capitalize }}{% endif %}
+          </div>
+
+          {% if anime.mean %}
+          <div class="text-xs text-yellow-300 mb-2">
+            ⭐ {{ "%.2f"|format(anime.mean) }} {% if anime.rank %} · Rank #{{
+            anime.rank }}{% endif %}
+          </div>
+          {% endif %} {% if anime.synopsis %}
+          <p class="text-xs text-slate-300 line-clamp-3 mb-3">
+            {{ anime.synopsis }}
+          </p>
+          {% endif %} {% if anime.genres %}
+          <div class="flex flex-wrap gap-1 mb-3">
+            {% for genre in anime.genres[:3] %}
+            <span class="text-xs bg-slate-700 rounded px-2 py-0.5"
+              >{{ genre }}</span
+            >
+            {% endfor %}
+          </div>
+          {% endif %} {% if current_user %}
+          <form
+            method="post"
+            action="{{ url_for('watchlist_add') }}"
+            class="mt-2"
+          >
+            <input type="hidden" name="anime_id" value="{{ anime.id }}" />
+            <input type="hidden" name="status" value="planned" />
+            <input type="hidden" name="episodes_watched" value="0" />
+            <button
+              type="submit"
+              class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-xs px-3 py-1 rounded"
+            >
+              Add to Watchlist
+            </button>
+          </form>
+          {% else %}
+          <a
+            href="{{ url_for('login') }}"
+            class="inline-block bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-3 py-1 rounded"
+          >
+            Login to Add
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="text-slate-400 text-center py-8">
+  <p>No results found for "{{ query }}".</p>
+  <p class="text-sm mt-2">Try a different search term.</p>
+</div>
+{% endif %} {% else %}
+<div class="text-slate-400 text-center py-8">
+  <p>Enter a search query to find anime.</p>
+</div>
+{% endif %} {% if query and results %}
+<div
+  id="loading-indicator"
+  class="hidden fixed top-20 right-4 bg-cyan-500 text-slate-900 px-4 py-2 rounded shadow-lg"
+>
+  Loading...
+</div>
+{% endif %}
+
+<script>
+  // Show loading indicator when clicking on anime links
+  document.querySelectorAll('a[href*="/anime/"]').forEach((link) => {
+    link.addEventListener("click", function () {
+      const loading = document.getElementById("loading-indicator");
+      if (loading) {
+        loading.classList.remove("hidden");
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -3,11 +3,34 @@
 {% block content %}
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div>
-			<img src="{{ anime.poster_url or 'https://placehold.co/400x600?text=Anime' }}" class="w-full rounded" alt="{{ anime.title }}" />
+			<img src="{{ anime.poster_url or 'https://placehold.co/400x600?text=Anime' }}" class="w-full rounded" alt="{{ anime.title }}" onerror="this.src='https://placehold.co/400x600?text=No+Image'" />
 		</div>
 		<div class="md:col-span-2">
 			<h1 class="text-3xl font-bold mb-2">{{ anime.title }}</h1>
-			<div class="text-slate-300 mb-3">{{ anime.type }} · {{ anime.release_year or '—' }} · {{ anime.total_episodes or '—' }} eps</div>
+			{% if anime.english_title and anime.english_title != anime.title %}
+				<div class="text-xl text-slate-400 mb-2">{{ anime.english_title }}</div>
+			{% endif %}
+			<div class="text-slate-300 mb-3">
+				{% if anime.year %} {{ anime.year }} · {% endif %}
+				{% if anime.num_episodes %} {{ anime.num_episodes }} eps · {% endif %}
+				{% if anime.status %} {{ anime.status|capitalize }} · {% endif %}
+				{% if anime.rating %} {{ anime.rating }}{% endif %}
+			</div>
+			
+			{% if anime.mean or anime.rank or anime.popularity %}
+				<div class="flex flex-wrap gap-4 mb-3 text-sm">
+					{% if anime.mean %}
+						<div class="text-yellow-300">⭐ <span class="font-semibold">{{ "%.2f"|format(anime.mean) }}</span></div>
+					{% endif %}
+					{% if anime.rank %}
+						<div class="text-slate-300">Rank: <span class="font-semibold">#{{ anime.rank }}</span></div>
+					{% endif %}
+					{% if anime.popularity %}
+						<div class="text-slate-300">Popularity: <span class="font-semibold">#{{ anime.popularity }}</span></div>
+					{% endif %}
+				</div>
+			{% endif %}
+			
 			<div class="flex flex-wrap gap-2 mb-3">
 				{% for g in genres %}
 					<span class="text-xs bg-slate-700 rounded px-2 py-1">{{ g }}</span>
@@ -16,11 +39,11 @@
 					<span class="text-xs bg-cyan-700/40 rounded px-2 py-1">{{ s }}</span>
 				{% endfor %}
 			</div>
-			<p class="text-slate-200 leading-relaxed mb-6">{{ anime.description or 'No description.' }}</p>
+			<p class="text-slate-200 leading-relaxed mb-6">{{ anime.full_synopsis or anime.synopsis or 'No description available.' }}</p>
 
 			{% if current_user %}
 				<form method="post" action="{{ url_for('watchlist_add') }}" class="flex flex-wrap gap-2 items-end mb-6 p-4 bg-slate-800/60 rounded">
-					<input type="hidden" name="anime_id" value="{{ anime.anime_id }}" />
+					<input type="hidden" name="anime_id" value="{{ anime.id }}" />
 					<div>
 						<label class="block text-sm mb-1">Status</label>
 						<select name="status" class="bg-slate-900 border border-slate-700 rounded px-3 py-2">
@@ -31,15 +54,47 @@
 					</div>
 					<div>
 						<label class="block text-sm mb-1">Episodes Watched</label>
-						<input name="episodes_watched" type="number" min="0" value="{{ user_watch.episodes_watched if user_watch else 0 }}" class="w-28 bg-slate-900 border border-slate-700 rounded px-3 py-2" />
+						<input name="episodes_watched" type="number" min="0" max="{{ anime.num_episodes or '' }}" value="{{ user_watch.episodes_watched if user_watch else 0 }}" class="w-28 bg-slate-900 border border-slate-700 rounded px-3 py-2" />
 					</div>
 					<button class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-4 py-2 rounded">Save to Watchlist</button>
 				</form>
 			{% endif %}
 
-			<h2 class="text-xl font-semibold mb-2">Reviews</h2>
+			{% if mal_reviews %}
+				<h2 class="text-xl font-semibold mb-3">Top Reviews</h2>
+				<div class="space-y-3 mb-6">
+					{% for review in mal_reviews %}
+						<div class="p-4 bg-slate-800/60 rounded">
+							<div class="flex items-center justify-between mb-2">
+								<div class="font-semibold">{{ review.reviewer }}</div>
+								<div class="flex items-center gap-2">
+									{% if review.rating and review.rating != "N/A" %}
+										<div class="text-sm text-yellow-300">★ {{ review.rating }}</div>
+									{% endif %}
+									{% if review.helpful_count %}
+										<div class="text-xs text-slate-400">👍 {{ review.helpful_count }}</div>
+									{% endif %}
+								</div>
+							</div>
+							<div class="text-slate-200 text-sm whitespace-pre-wrap line-clamp-6">
+								{% set review_text = review.review or '' %}
+								{% if review_text|length > 500 %}
+									{{ review_text[:500] }}...
+								{% else %}
+									{{ review_text }}
+								{% endif %}
+							</div>
+							{% if review.date %}
+								<div class="text-xs text-slate-400 mt-2">{{ review.date }}</div>
+							{% endif %}
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %}
+
+			<h2 class="text-xl font-semibold mb-2">Local Reviews</h2>
 			{% if current_user %}
-				<form method="post" action="{{ url_for('review_add', anime_id=anime.anime_id) }}" class="space-y-3 mb-6 p-4 bg-slate-800/60 rounded">
+				<form method="post" action="{{ url_for('review_add', anime_id=anime.id) }}" class="space-y-3 mb-6 p-4 bg-slate-800/60 rounded">
 					<div>
 						<label class="block text-sm mb-1">Rating (1–10)</label>
 						<input name="rating" type="number" min="1" max="10" class="w-24 bg-slate-900 border border-slate-700 rounded px-3 py-2" required />
@@ -53,23 +108,25 @@
 			{% endif %}
 
 			<div class="space-y-3">
-				{% for r in reviews %}
-					<div class="p-4 bg-slate-800/60 rounded">
-						<div class="flex items-center justify-between mb-2">
-							<div class="font-semibold">{{ r.username }}</div>
-							<div class="text-sm text-yellow-300">★ {{ r.rating }}</div>
+				{% if reviews %}
+					{% for r in reviews %}
+						<div class="p-4 bg-slate-800/60 rounded">
+							<div class="flex items-center justify-between mb-2">
+								<div class="font-semibold">{{ r.username }}</div>
+								<div class="text-sm text-yellow-300">★ {{ r.rating }}</div>
+							</div>
+							<div class="text-slate-200 whitespace-pre-wrap">{{ r.review_text or '' }}</div>
+							<div class="text-xs text-slate-400 mt-2">{{ r.review_date }}</div>
+							{% if current_user == r.username %}
+								<form method="post" action="{{ url_for('review_delete', review_id=r.review_id) }}" class="mt-2">
+									<button class="text-red-300 hover:text-red-200 text-sm">Delete</button>
+								</form>
+							{% endif %}
 						</div>
-						<div class="text-slate-200 whitespace-pre-wrap">{{ r.review_text or '' }}</div>
-						<div class="text-xs text-slate-400 mt-2">{{ r.review_date }}</div>
-						{% if current_user == r.username %}
-							<form method="post" action="{{ url_for('review_delete', review_id=r.review_id) }}" class="mt-2">
-								<button class="text-red-300 hover:text-red-200 text-sm">Delete</button>
-							</form>
-						{% endif %}
-					</div>
+					{% endfor %}
 				{% else %}
-					<div class="text-slate-400">No reviews yet.</div>
-				{% endfor %}
+					<div class="text-slate-400">No local reviews yet.</div>
+				{% endif %}
 			</div>
 		</div>
 	</div>

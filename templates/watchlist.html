@@ -2,38 +2,62 @@
 {% block title %}My Watchlist · Anime Watchlist{% endblock %}
 {% block content %}
 	<h1 class="text-2xl font-bold mb-4">My Watchlist</h1>
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-		{% for w in items %}
-			<div class="p-3 bg-slate-800/60 rounded">
-				<div class="flex gap-3">
-					<img src="{{ w.poster_url or 'https://placehold.co/200x300?text=Anime' }}" class="w-24 h-36 object-cover rounded" alt="{{ w.title }}" />
-					<div class="flex-1">
-						<a href="{{ url_for('anime_detail', anime_id=w.anime_id) }}" class="font-semibold hover:text-cyan-300">{{ w.title }}</a>
-						<div class="text-xs text-slate-400 mb-2">{{ w.type }} · {{ w.release_year or '—' }} · {{ w.total_episodes or '—' }} eps</div>
-						<form method="post" action="{{ url_for('watchlist_update', watchlist_id=w.watchlist_id) }}" class="flex flex-wrap items-end gap-2">
-							<div>
-								<label class="block text-xs mb-1">Status</label>
-								<select name="status" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
-									{% for s in statuses %}
-										<option value="{{ s }}" {% if w.status==s %}selected{% endif %}>{{ s|capitalize }}</option>
-									{% endfor %}
-								</select>
+	<div id="watchlist-container">
+		<div id="loading-indicator" class="hidden text-center py-8 text-slate-400">
+			<div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+			<p class="mt-2">Loading anime details...</p>
+		</div>
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="watchlist-items">
+			{% for w in items %}
+				<div class="p-3 bg-slate-800/60 rounded">
+					<div class="flex gap-3">
+						<a href="{{ url_for('anime_detail', anime_id=w.anime_id) }}">
+							<img src="{{ w.poster_url or 'https://placehold.co/200x300?text=Anime' }}" class="w-24 h-36 object-cover rounded" alt="{{ w.title }}" onerror="this.src='https://placehold.co/200x300?text=No+Image'" />
+						</a>
+						<div class="flex-1">
+							<a href="{{ url_for('anime_detail', anime_id=w.anime_id) }}" class="font-semibold hover:text-cyan-300 block mb-1">{{ w.title }}</a>
+							<div class="text-xs text-slate-400 mb-2">
+								{% if w.year %} {{ w.year }} · {% endif %}
+								{% if w.num_episodes %} {{ w.num_episodes }} eps{% endif %}
 							</div>
-							<div>
-								<label class="block text-xs mb-1">Episodes</label>
-								<input name="episodes_watched" type="number" min="0" value="{{ w.episodes_watched or 0 }}" class="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1" />
-							</div>
-							<button class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-3 py-1 rounded">Save</button>
-						</form>
-						<form method="post" action="{{ url_for('watchlist_delete', watchlist_id=w.watchlist_id) }}" class="mt-2">
-							<button class="text-red-300 hover:text-red-200 text-sm">Remove</button>
-						</form>
+							{% if w.mean or w.rank %}
+								<div class="text-xs mb-2">
+									{% if w.mean %}
+										<span class="text-yellow-300">⭐ {{ "%.2f"|format(w.mean) }}</span>
+									{% endif %}
+									{% if w.rank %}
+										<span class="text-slate-400 ml-2">#{{ w.rank }}</span>
+									{% endif %}
+								</div>
+							{% endif %}
+							<form method="post" action="{{ url_for('watchlist_update', watchlist_id=w.watchlist_id) }}" class="flex flex-wrap items-end gap-2">
+								<div>
+									<label class="block text-xs mb-1">Status</label>
+									<select name="status" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs">
+										{% for s in statuses %}
+											<option value="{{ s }}" {% if w.status==s %}selected{% endif %}>{{ s|capitalize }}</option>
+										{% endfor %}
+									</select>
+								</div>
+								<div>
+									<label class="block text-xs mb-1">Episodes</label>
+									<input name="episodes_watched" type="number" min="0" max="{{ w.num_episodes or '' }}" value="{{ w.episodes_watched or 0 }}" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs" />
+								</div>
+								<button class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-3 py-1 rounded text-xs">Save</button>
+							</form>
+							<form method="post" action="{{ url_for('watchlist_delete', watchlist_id=w.watchlist_id) }}" class="mt-2">
+								<button class="text-red-300 hover:text-red-200 text-sm">Remove</button>
+							</form>
+						</div>
 					</div>
 				</div>
-			</div>
-		{% else %}
-			<div class="col-span-full text-slate-400">Your watchlist is empty.</div>
-		{% endfor %}
+			{% else %}
+				<div class="col-span-full text-slate-400 text-center py-8">
+					<p>Your watchlist is empty.</p>
+					<a href="{{ url_for('search') }}" class="text-cyan-300 hover:text-cyan-200 mt-2 inline-block">Search for anime to add</a>
+				</div>
+			{% endfor %}
+		</div>
 	</div>
 {% endblock %}
 
