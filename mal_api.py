@@ -81,7 +81,7 @@ def get_ranking(ranking_type: str = "all", limit: int = 5) -> List[Dict]:
         params = {
             "ranking_type": ranking_type,
             "limit": limit,
-            "fields": "id,title,main_picture,mean,rank,popularity,num_episodes,genres,start_date"
+            "fields": "id,title,main_picture,mean,genres,synopsis"
         }
         response = requests.get(url, headers=MAL_HEADERS, params=params, timeout=10)
         response.raise_for_status()
@@ -132,8 +132,9 @@ def get_anime_by_genre(genre_id: int, limit: int = 10) -> List[Dict]:
         params = {
             "ranking_type": "bypopularity",
             "limit": 100,
-            "fields": "id,title,main_picture,mean,genres"
+            "fields": "id,title,main_picture,mean,genres,synopsis"
         }
+
         response = requests.get(url, headers=MAL_HEADERS, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
