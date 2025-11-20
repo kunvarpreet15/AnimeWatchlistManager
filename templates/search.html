@@ -1,120 +1,285 @@
-{% extends 'base.html' %} {% block title %}Search Anime · Anime Watchlist{%
-endblock %} {% block content %}
+{% extends 'base.html' %} {% block title %}Search Anime · Anime Watchlist{% endblock %} {% block content %}
 <div class="flex items-center justify-between gap-4 mb-6">
   <h1 class="text-2xl font-bold">Search Anime</h1>
 </div>
 
-<form method="get" action="{{ url_for('search') }}" class="mb-6">
-  <div class="flex gap-2">
-    <input
-      name="q"
-      value="{{ query }}"
-      placeholder="Search anime by title..."
-      class="flex-1 bg-slate-800 border border-slate-700 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
-      required
-    />
-    <button
-      type="submit"
-      class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-6 py-2 rounded"
-    >
-      Search
-    </button>
+<form method="get" action="{{ url_for('search') }}" class="filter-form mb-6">
+  <div class="bg-slate-800/60 rounded-lg p-6 border border-slate-700">
+    <!-- Search Query -->
+    <div class="mb-4">
+      <label for="q" class="block text-sm font-semibold mb-2">Search Query</label>
+      <input
+        type="text"
+        id="q"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search anime by title..."
+        class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+      />
+    </div>
+
+    <!-- Filter Row 1: Genre, Year, Score, Media Type -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <!-- Genre Filter -->
+      <div>
+        <label for="genre" class="block text-sm font-semibold mb-2">Genre</label>
+        <select
+          id="genre"
+          name="genre"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          <option value="">All Genres</option>
+          {% if genre_ids %}
+          {% for genre_name in genre_ids.keys() %}
+          <option value="{{ genre_name }}" {% if filters and filters.genre == genre_name %}selected{% endif %}>
+            {{ genre_name|capitalize }}
+          </option>
+          {% endfor %}
+          {% endif %}
+        </select>
+      </div>
+
+      <!-- Release Year -->
+      <div>
+        <label for="year" class="block text-sm font-semibold mb-2">Release Year</label>
+        <select
+          id="year"
+          name="year"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          <option value="">All Years</option>
+          {% for year_val in range(2025, 1959, -1) %}
+          <option value="{{ year_val }}" {% if filters and filters.year|string == year_val|string %}selected{% endif %}>
+            {{ year_val }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Minimum Score -->
+      <div>
+        <label for="score" class="block text-sm font-semibold mb-2">Minimum Score</label>
+        <select
+          id="score"
+          name="score"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          <option value="">All Scores</option>
+          {% for score_val in range(10, 0, -1) %}
+          <option value="{{ score_val }}" {% if filters and filters.score|string == score_val|string %}selected{% endif %}>
+            {{ score_val }}+
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Media Type -->
+      <div>
+        <label for="media_type" class="block text-sm font-semibold mb-2">Media Type</label>
+        <select
+          id="media_type"
+          name="media_type"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          <option value="">All Types</option>
+          <option value="tv" {% if filters and filters.media_type == "tv" %}selected{% endif %}>TV</option>
+          <option value="movie" {% if filters and filters.media_type == "movie" %}selected{% endif %}>Movie</option>
+          <option value="ova" {% if filters and filters.media_type == "ova" %}selected{% endif %}>OVA</option>
+          <option value="ona" {% if filters and filters.media_type == "ona" %}selected{% endif %}>ONA</option>
+          <option value="special" {% if filters and filters.media_type == "special" %}selected{% endif %}>Special</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Filter Row 2: Include/Exclude Genres -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <!-- Include Genres -->
+      <div>
+        <label for="include_genres" class="block text-sm font-semibold mb-2">Include Genre(s) (must have ALL)</label>
+        <select
+          id="include_genres"
+          name="include_genres"
+          multiple
+          size="4"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          {% if genre_ids %}
+          {% for genre_name in genre_ids.keys() %}
+          <option value="{{ genre_name }}" {% if filters and filters.include_genres and genre_name in filters.include_genres %}selected{% endif %}>
+            {{ genre_name|capitalize }}
+          </option>
+          {% endfor %}
+          {% endif %}
+        </select>
+        <p class="text-xs text-slate-400 mt-1">Hold Ctrl/Cmd to select multiple</p>
+      </div>
+
+      <!-- Exclude Genres -->
+      <div>
+        <label for="exclude_genres" class="block text-sm font-semibold mb-2">Exclude Genre(s) (must have NONE)</label>
+        <select
+          id="exclude_genres"
+          name="exclude_genres"
+          multiple
+          size="4"
+          class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+        >
+          {% if genre_ids %}
+          {% for genre_name in genre_ids.keys() %}
+          <option value="{{ genre_name }}" {% if filters and filters.exclude_genres and genre_name in filters.exclude_genres %}selected{% endif %}>
+            {{ genre_name|capitalize }}
+          </option>
+          {% endfor %}
+          {% endif %}
+        </select>
+        <p class="text-xs text-slate-400 mt-1">Hold Ctrl/Cmd to select multiple</p>
+      </div>
+    </div>
+
+    <!-- Sort Option -->
+    <div class="mb-4">
+      <label for="sort" class="block text-sm font-semibold mb-2">Sort By</label>
+      <select
+        id="sort"
+        name="sort"
+        class="w-full bg-slate-700 border border-slate-600 rounded px-4 py-2 focus:outline-none focus:border-cyan-500"
+      >
+        <option value="score_desc" {% if filters and filters.sort == "score_desc" %}selected{% endif %}>Score (High → Low)</option>
+        <option value="score_asc" {% if filters and filters.sort == "score_asc" %}selected{% endif %}>Score (Low → High)</option>
+        <option value="title_asc" {% if filters and filters.sort == "title_asc" %}selected{% endif %}>Title (A → Z)</option>
+        <option value="title_desc" {% if filters and filters.sort == "title_desc" %}selected{% endif %}>Title (Z → A)</option>
+        <option value="popularity_asc" {% if filters and filters.sort == "popularity_asc" %}selected{% endif %}>Popularity (Low → High)</option>
+        <option value="popularity_desc" {% if filters and filters.sort == "popularity_desc" %}selected{% endif %}>Popularity (High → Low)</option>
+        <option value="start_date_desc" {% if filters and filters.sort == "start_date_desc" %}selected{% endif %}>Release Date (Newest First)</option>
+        <option value="start_date_asc" {% if filters and filters.sort == "start_date_asc" %}selected{% endif %}>Release Date (Oldest First)</option>
+      </select>
+    </div>
+
+    <!-- Submit Buttons -->
+    <div class="flex justify-end gap-3">
+      <a
+        href="{{ url_for('search') }}"
+        class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-6 py-2 rounded"
+      >
+        Clear Filters
+      </a>
+      <button
+        type="submit"
+        class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-6 py-2 rounded"
+      >
+        Search
+      </button>
+    </div>
   </div>
 </form>
 
-{% if query %} {% if results %}
-<div class="space-y-4">
-  <h2 class="text-xl font-semibold">Search Results for "{{ query }}"</h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for anime in results %}
-    <div
-      class="bg-slate-800/60 rounded-lg p-4 hover:bg-slate-800/80 transition"
-    >
-      <div class="flex gap-4">
-        <a href="{{ url_for('anime_detail', anime_id=anime.id) }}">
-          <img
-            src="{{ anime.poster_url or 'https://placehold.co/150x200?text=No+Image' }}"
-            alt="{{ anime.title }}"
-            class="w-24 h-32 object-cover rounded"
-            onerror="this.src='https://placehold.co/150x200?text=No+Image'"
-          />
-        </a>
-        <div class="flex-1">
-          <a
-            href="{{ url_for('anime_detail', anime_id=anime.id) }}"
-            class="font-semibold text-cyan-300 hover:text-cyan-200 block mb-2"
-          >
-            {{ anime.title }}
+{% if query %}
+  {% if results %}
+  <div class="space-y-4">
+    <h2 class="text-xl font-semibold">Search Results for "{{ query }}" ({{ results|length }} found)</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for anime in results %}
+      <div
+        class="bg-slate-800/60 rounded-lg p-4 hover:bg-slate-800/80 transition"
+      >
+        <div class="flex gap-4">
+          <a href="{{ url_for('anime_detail', anime_id=anime.id) }}">
+            <img
+              src="{{ anime.poster_url or 'https://placehold.co/150x200?text=No+Image' }}"
+              alt="{{ anime.title }}"
+              class="w-24 h-32 object-cover rounded"
+              onerror="this.src='https://placehold.co/150x200?text=No+Image'"
+            />
           </a>
-          {% if anime.english_title and anime.english_title != anime.title %}
-          <div class="text-sm text-slate-400 mb-2">
-            {{ anime.english_title }}
-          </div>
-          {% endif %}
-
-          <div class="text-xs text-slate-400 mb-2">
-            {% if anime.year %} {{ anime.year }} · {% endif %} {% if
-            anime.num_episodes %} {{ anime.num_episodes }} eps · {% endif %} {%
-            if anime.status %} {{ anime.status|capitalize }}{% endif %}
-          </div>
-
-          {% if anime.mean %}
-          <div class="text-xs text-yellow-300 mb-2">
-            ⭐ {{ "%.2f"|format(anime.mean) }} {% if anime.rank %} · Rank #{{
-            anime.rank }}{% endif %}
-          </div>
-          {% endif %} {% if anime.synopsis %}
-          <p class="text-xs text-slate-300 line-clamp-3 mb-3">
-            {{ anime.synopsis }}
-          </p>
-          {% endif %} {% if anime.genres %}
-          <div class="flex flex-wrap gap-1 mb-3">
-            {% for genre in anime.genres[:3] %}
-            <span class="text-xs bg-slate-700 rounded px-2 py-0.5"
-              >{{ genre }}</span
+          <div class="flex-1">
+            <a
+              href="{{ url_for('anime_detail', anime_id=anime.id) }}"
+              class="font-semibold text-cyan-300 hover:text-cyan-200 block mb-2"
             >
-            {% endfor %}
-          </div>
-          {% endif %} {% if current_user %}
-          <form
-            method="post"
-            action="{{ url_for('watchlist_add') }}"
-            class="mt-2"
-          >
-            <input type="hidden" name="anime_id" value="{{ anime.id }}" />
-            <input type="hidden" name="status" value="planned" />
-            <input type="hidden" name="episodes_watched" value="0" />
-            <button
-              type="submit"
-              class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-xs px-3 py-1 rounded"
+              {{ anime.title }}
+            </a>
+            {% if anime.english_title and anime.english_title != anime.title %}
+            <div class="text-sm text-slate-400 mb-2">
+              {{ anime.english_title }}
+            </div>
+            {% endif %}
+
+            <!-- Year, Episodes, Media Type -->
+            <div class="text-xs text-slate-400 mb-2">
+              {% if anime.year %} {{ anime.year }} · {% endif %} 
+              {% if anime.num_episodes %} {{ anime.num_episodes }} eps · {% endif %} 
+              {% if anime.media_type %} {{ anime.media_type|upper }} · {% endif %}
+              {% if anime.status %} {{ anime.status|capitalize }}{% endif %}
+            </div>
+
+            <!-- Score -->
+            {% if anime.mean %}
+            <div class="text-xs text-yellow-300 mb-2">
+              ⭐ {{ "%.2f"|format(anime.mean) }} 
+              {% if anime.rank %} · Rank #{{ anime.rank }}{% endif %}
+              {% if anime.popularity %} · Popularity #{{ anime.popularity }}{% endif %}
+            </div>
+            {% endif %}
+
+            {% if anime.synopsis %}
+            <p class="text-xs text-slate-300 line-clamp-3 mb-3">
+              {{ anime.synopsis }}
+            </p>
+            {% endif %}
+
+            {% if anime.genres %}
+            <div class="flex flex-wrap gap-1 mb-3">
+              {% for genre in anime.genres[:3] %}
+              <span class="text-xs bg-slate-700 rounded px-2 py-0.5"
+                >{{ genre }}</span
+              >
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if current_user %}
+            <form
+              method="post"
+              action="{{ url_for('watchlist_add') }}"
+              class="mt-2"
             >
-              Add to Watchlist
-            </button>
-          </form>
-          {% else %}
-          <a
-            href="{{ url_for('login') }}"
-            class="inline-block bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-3 py-1 rounded"
-          >
-            Login to Add
-          </a>
-          {% endif %}
+              <input type="hidden" name="anime_id" value="{{ anime.id }}" />
+              <input type="hidden" name="status" value="planned" />
+              <input type="hidden" name="episodes_watched" value="0" />
+              <button
+                type="submit"
+                class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-xs px-3 py-1 rounded"
+              >
+                Add to Watchlist
+              </button>
+            </form>
+            {% else %}
+            <a
+              href="{{ url_for('login') }}"
+              class="inline-block bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-3 py-1 rounded"
+            >
+              Login to Add
+            </a>
+            {% endif %}
+          </div>
         </div>
       </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
-</div>
+  {% else %}
+  <div class="text-slate-400 text-center py-8">
+    <p>No results found for "{{ query }}".</p>
+    <p class="text-sm mt-2">Try adjusting your filters or search term.</p>
+  </div>
+  {% endif %}
 {% else %}
-<div class="text-slate-400 text-center py-8">
-  <p>No results found for "{{ query }}".</p>
-  <p class="text-sm mt-2">Try a different search term.</p>
-</div>
-{% endif %} {% else %}
 <div class="text-slate-400 text-center py-8">
   <p>Enter a search query to find anime.</p>
 </div>
-{% endif %} {% if query and results %}
+{% endif %}
+
+{% if query and results %}
 <div
   id="loading-indicator"
   class="hidden fixed top-20 right-4 bg-cyan-500 text-slate-900 px-4 py-2 rounded shadow-lg"

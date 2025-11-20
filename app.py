@@ -186,13 +186,38 @@ def browse():
 
 @app.route("/search")
 def search():
-    """Search anime using MAL API."""
+    """Search anime using MAL API with advanced filtering and sorting."""
+    # Read filter parameters from request
     query = request.args.get("q", "").strip()
-    if not query:
-        return render_template("search.html", results=[], query="")
+    genre = request.args.get("genre", "").strip()
+    year = request.args.get("year", "").strip()
+    score = request.args.get("score", "").strip()
+    media_type = request.args.get("media_type", "").strip()
+    include_genres = request.args.getlist("include_genres")
+    exclude_genres = request.args.getlist("exclude_genres")
+    sort = request.args.get("sort", "score_desc").strip()
     
-    # Search MAL API (limit=12 as specified)
-    mal_results = mal_api.search_anime(query, limit=12)
+    # If no query provided, render empty search page with filters
+    if not query:
+        filters = {
+            "genre": genre,
+            "year": year,
+            "score": score,
+            "media_type": media_type,
+            "include_genres": include_genres or [],
+            "exclude_genres": exclude_genres or [],
+            "sort": sort,
+        }
+        return render_template(
+            "search.html", 
+            results=[], 
+            query="", 
+            filters=filters,
+            genre_ids=mal_api.GENRE_IDS
+        )
+    
+    # Search MAL API (limit=100 for better filtering results)
+    mal_results = mal_api.search_anime(query, limit=100)
     
     # Format results for display
     results = []
@@ -201,7 +226,93 @@ def search():
         if formatted:
             results.append(formatted)
     
-    return render_template("search.html", results=results, query=query)
+    # Apply filters
+    filtered_results = []
+    for anime in results:
+        # Genre filter (case-insensitive match)
+        if genre:
+            genre_match = False
+            anime_genres_lower = [g.lower() for g in anime.get("genres", [])]
+            if genre.lower() in anime_genres_lower:
+                genre_match = True
+            if not genre_match:
+                continue
+        
+        # Include genres filter (anime must contain ALL selected genres)
+        if include_genres:
+            anime_genres_lower = [g.lower() for g in anime.get("genres", [])]
+            if not all(ig.lower() in anime_genres_lower for ig in include_genres if ig.strip()):
+                continue
+        
+        # Exclude genres filter (anime must contain NONE of the excluded genres)
+        if exclude_genres:
+            anime_genres_lower = [g.lower() for g in anime.get("genres", [])]
+            if any(eg.lower() in anime_genres_lower for eg in exclude_genres if eg.strip()):
+                continue
+        
+        # Year filter (extract from start_date)
+        if year:
+            try:
+                year_val = int(year)
+                if anime.get("year") != year_val:
+                    continue
+            except ValueError:
+                pass  # Invalid year, skip filter
+        
+        # Minimum score filter
+        if score:
+            try:
+                score_val = float(score)
+                anime_mean = anime.get("mean")
+                if anime_mean is None or anime_mean < score_val:
+                    continue
+            except ValueError:
+                pass  # Invalid score, skip filter
+        
+        # Media type filter
+        if media_type:
+            anime_media_type = anime.get("media_type", "")
+            if anime_media_type.lower() != media_type.lower():
+                continue
+        
+        filtered_results.append(anime)
+    
+    # Apply sorting
+    if sort == "score_desc":
+        filtered_results.sort(key=lambda x: x.get("mean") if x.get("mean") is not None else -1, reverse=True)
+    elif sort == "score_asc":
+        filtered_results.sort(key=lambda x: x.get("mean") if x.get("mean") is not None else 9999)
+    elif sort == "title_asc":
+        filtered_results.sort(key=lambda x: x.get("title", "").lower())
+    elif sort == "title_desc":
+        filtered_results.sort(key=lambda x: x.get("title", "").lower(), reverse=True)
+    elif sort == "popularity_asc":
+        filtered_results.sort(key=lambda x: x.get("popularity") if x.get("popularity") is not None else 999999)
+    elif sort == "popularity_desc":
+        filtered_results.sort(key=lambda x: x.get("popularity") if x.get("popularity") is not None else -1, reverse=True)
+    elif sort == "start_date_desc":
+        filtered_results.sort(key=lambda x: x.get("start_date", "") or "", reverse=True)
+    elif sort == "start_date_asc":
+        filtered_results.sort(key=lambda x: x.get("start_date", "") or "")
+    
+    # Prepare filters dict for template
+    filters = {
+        "genre": genre,
+        "year": year,
+        "score": score,
+        "media_type": media_type,
+        "include_genres": include_genres or [],
+        "exclude_genres": exclude_genres or [],
+        "sort": sort,
+    }
+    
+    return render_template(
+        "search.html", 
+        results=filtered_results, 
+        query=query, 
+        filters=filters,
+        genre_ids=mal_api.GENRE_IDS
+    )
 
 
 @app.route("/anime/<int:anime_id>")

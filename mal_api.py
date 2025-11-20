@@ -190,7 +190,7 @@ def search_anime(query: str, limit: int = 12) -> List[Dict]:
         params = {
             "q": query,
             "limit": limit,
-            "fields": "id,title,main_picture,synopsis,mean,genres"
+            "fields": "id,title,main_picture,synopsis,mean,genres,start_date,popularity,media_type"
         }
         response = requests.get(url, headers=MAL_HEADERS, params=params, timeout=10)
         response.raise_for_status()
@@ -331,6 +331,17 @@ def format_anime_for_display(anime_data: Dict) -> Optional[Dict]:
     if synopsis and len(synopsis) > 500:
         synopsis = synopsis[:497] + "..."
     
+    # Ensure mean is a float
+    mean = anime_data.get("mean")
+    if mean is not None:
+        try:
+            mean = float(mean)
+        except (ValueError, TypeError):
+            mean = None
+    
+    # Get media_type (media_type field from MAL API)
+    media_type = anime_data.get("media_type", "")
+    
     return {
         "id": anime_data.get("id"),
         "title": anime_data.get("title", "Unknown"),
@@ -343,7 +354,7 @@ def format_anime_for_display(anime_data: Dict) -> Optional[Dict]:
         "start_date": start_date,
         "end_date": anime_data.get("end_date", ""),
         "num_episodes": anime_data.get("num_episodes"),
-        "mean": anime_data.get("mean"),
+        "mean": mean,
         "rank": anime_data.get("rank"),
         "popularity": anime_data.get("popularity"),
         "genres": genres,
@@ -351,5 +362,6 @@ def format_anime_for_display(anime_data: Dict) -> Optional[Dict]:
         "status": anime_data.get("status", "").lower(),
         "rating": anime_data.get("rating", ""),
         "average_episode_duration": anime_data.get("average_episode_duration"),
+        "media_type": media_type,
     }
 
