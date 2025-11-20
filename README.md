@@ -40,6 +40,21 @@ python app.py
   - Hero section with top-ranked anime
   - Trending section with currently airing anime
   - Genre-based sections (Action, Comedy, Drama, Fantasy)
+- **Advanced Search with Filtering & Sorting**:
+  - Search by anime title with up to 100 results
+  - **Filter by Genre**: Case-insensitive genre matching
+  - **Filter by Release Year**: Search anime from specific years (1960-2025)
+  - **Filter by Minimum Score**: Filter by MAL mean score (1-10)
+  - **Filter by Media Type**: TV, Movie, OVA, ONA, Special
+  - **Include Genres**: Require anime to have ALL selected genres
+  - **Exclude Genres**: Exclude anime that contain ANY selected genres
+  - **8 Sorting Options**:
+    - Score (high → low, low → high)
+    - Title (A → Z, Z → A)
+    - Popularity (high → low, low → high)
+    - Release Date (newest first, oldest first)
+  - All filtering done locally in Python after fetching from MAL API
+  - Clear Filters button to reset all filters
 - **Dynamic Watchlist**: Anime details are fetched live from MAL API, keeping data up-to-date
 - **Caching**: API responses are cached for 5 minutes to reduce API calls
 - **User Reviews**: Both MAL reviews (top 3) and local user reviews are displayed
@@ -54,6 +69,12 @@ python app.py
 - **All Anime Data from MAL**: Titles, posters, synopsis, ratings, genres, studios, etc. are fetched live from MAL API
 - **Caching Layer**: Simple in-memory cache with 5-minute TTL to optimize API usage
 
+### Search & Filtering Details
+- **Local Filtering**: Since MAL API doesn't support server-side genre/year/score queries, all filtering is performed locally in Python after fetching results
+- **Search Limit**: Up to 100 results fetched from MAL API, then filtered locally
+- **Filter Persistence**: Filter selections are preserved in the form when viewing results
+- **Real-time Results**: Results count is displayed showing how many anime match the current filters
+
 ### Notes
 - Tailwind via CDN for styling.
 - Session-based authentication; passwords hashed with bcrypt.
@@ -61,6 +82,7 @@ python app.py
 - Update `.env` for your environment.
 - MAL API requires a Client ID (free to obtain from https://myanimelist.net/apiconfig).
 - The `/browse` route redirects to `/search` since all content is from MAL API.
+- Search filtering and sorting happen client-side (in the Flask app) after fetching data from MAL API, as the MAL API doesn't support advanced server-side filtering.
 
 
 
